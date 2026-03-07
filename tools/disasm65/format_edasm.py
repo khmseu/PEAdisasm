@@ -84,12 +84,40 @@ def _decode_map(
 ) -> dict[int, Any]:
     decoded: dict[int, Any] = {}
     offset = 0
+    bf00_payload_state = 0
 
     while offset < len(data):
         address = org + offset
         kind = _resolve_kind(address, directives)
 
         if kind in _EXECUTABLE_KINDS:
+            if bf00_payload_state == 1:
+                decoded[address] = DecodedInstruction(
+                    mnemonic="DB", operand=f"${data[offset]:02X}", length=1
+                )
+                offset += 1
+                bf00_payload_state = 2
+                continue
+
+            if bf00_payload_state == 2:
+                contiguous_length = _contiguous_kind_length(
+                    len(data), org, offset, directives, kind
+                )
+                bytes_left = len(data) - offset
+                if bytes_left >= 2 and contiguous_length >= 2:
+                    value = data[offset] | (data[offset + 1] << 8)
+                    decoded[address] = DecodedInstruction(
+                        mnemonic="DW", operand=f"${value:04X}", length=2
+                    )
+                    offset += 2
+                else:
+                    decoded[address] = DecodedInstruction(
+                        mnemonic="DB", operand=f"${data[offset]:02X}", length=1
+                    )
+                    offset += 1
+                bf00_payload_state = 0
+                continue
+
             contiguous_length = _contiguous_kind_length(
                 len(data), org, offset, directives, kind
             )
@@ -111,6 +139,12 @@ def _decode_map(
                 )
 
             decoded[address] = instruction
+            if (
+                kind == "CODE"
+                and str(getattr(instruction, "mnemonic", "")).upper() == "JSR"
+                and str(getattr(instruction, "operand", "")).upper() == "$BF00"
+            ):
+                bf00_payload_state = 1
             offset += max(1, int(getattr(instruction, "length", 1)))
             continue
 

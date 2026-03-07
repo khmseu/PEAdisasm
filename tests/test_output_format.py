@@ -199,6 +199,43 @@ class TestOutputFormat(unittest.TestCase):
         lines = output.splitlines()
         self.assertEqual(lines[1], "            DB     $4C")
 
+    def test_jsr_bf00_consumes_inline_payload_and_resumes_decode(self) -> None:
+        output = format_edasm(
+            data=bytes([0x20, 0x00, 0xBF, 0x82, 0x34, 0x12, 0xEA]),
+            org=0x6200,
+            directives=parse_control("CODE $6200,$6206"),
+            predefined_symbols={"PTR": 0x1234},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $6200",
+                "            JSR    LBF00",
+                "            DB     $82",
+                "            DW     PTR",
+                "            NOP",
+            ],
+        )
+
+    def test_jsr_bf00_payload_truncation_falls_back_safely(self) -> None:
+        output = format_edasm(
+            data=bytes([0x20, 0x00, 0xBF, 0x82, 0x34]),
+            org=0x6300,
+            directives=parse_control("CODE $6300,$6304"),
+            predefined_symbols={},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $6300",
+                "            JSR    LBF00",
+                "            DB     $82",
+                "            DB     $34",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
