@@ -34,21 +34,45 @@ class TestCliSmoke(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("the following arguments are required: input", result.stderr.lower())
 
-    def test_valid_args_print_phase1_message(self) -> None:
+    def test_valid_args_print_disassembly_output(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".bin") as tmp:
             result = self.run_cli(
                 tmp.name,
                 "--org",
                 "4096",
-                "--control",
-                "control.txt",
-                "--symbols",
-                "symbols.txt",
                 "--sweet16-heuristic",
             )
 
         self.assertEqual(result.returncode, 0)
-        self.assertIn("not implemented", result.stdout.lower())
+        self.assertIn("ORG", result.stdout)
+
+    def test_control_org_used_when_org_not_provided(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file, tempfile.NamedTemporaryFile(
+            suffix=".ctl", mode="w", encoding="utf-8"
+        ) as ctl_file:
+            bin_file.write(bytes([0xEA]))
+            bin_file.flush()
+            ctl_file.write("ORG $2000\nCODE $2000,$2000\n")
+            ctl_file.flush()
+
+            result = self.run_cli(bin_file.name, "--control", ctl_file.name)
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.splitlines()[0], "            ORG    $2000")
+
+    def test_explicit_org_zero_overrides_control_org(self) -> None:
+        with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file, tempfile.NamedTemporaryFile(
+            suffix=".ctl", mode="w", encoding="utf-8"
+        ) as ctl_file:
+            bin_file.write(bytes([0xEA]))
+            bin_file.flush()
+            ctl_file.write("ORG $2000\nCODE $2000,$2000\n")
+            ctl_file.flush()
+
+            result = self.run_cli(bin_file.name, "--org", "0", "--control", ctl_file.name)
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.splitlines()[0], "            ORG    $0000")
 
 
 if __name__ == "__main__":
