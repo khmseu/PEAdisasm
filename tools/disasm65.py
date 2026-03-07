@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -43,6 +44,16 @@ def _parse_org(value: str) -> int:
         raise argparse.ArgumentTypeError(f"invalid origin address: {value!r}") from exc
 
 
+def _format_parse_error(path: Path, message: str) -> str:
+    line_match = re.match(r"^line\s+(\d+):\s*(.*)$", message)
+    if line_match is None:
+        return message
+
+    line_no = line_match.group(1)
+    detail = line_match.group(2)
+    return f"{path}:{line_no}:1: {detail}"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="disasm65",
@@ -81,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             directives = parse_control(args.control.read_text(encoding="utf-8"))
         except ValueError as exc:
-            parser.error(str(exc))
+            parser.error(_format_parse_error(args.control, str(exc)))
 
     symbols = {}
     if args.symbols is not None:
@@ -90,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             symbols = parse_symbols(args.symbols.read_text(encoding="utf-8"))
         except ValueError as exc:
-            parser.error(str(exc))
+            parser.error(_format_parse_error(args.symbols, str(exc)))
 
     org = int(args.org) if args.org is not None else 0
     if args.org is None:
