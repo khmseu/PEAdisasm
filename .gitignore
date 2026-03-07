@@ -181,3 +181,5 @@ pyrightconfig.json
 # Local extraction output from cadius
 /local_extract/
 plans/
+
+.fake
