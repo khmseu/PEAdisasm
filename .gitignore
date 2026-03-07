@@ -183,3 +183,4 @@ pyrightconfig.json
 plans/
 
 .fake
+work/ei_output.txt
