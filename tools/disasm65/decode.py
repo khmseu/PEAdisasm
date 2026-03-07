@@ -77,6 +77,75 @@ def decode_65c02(data: bytes, pc: int = 0) -> DecodedInstruction:
             mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
         )
 
+    if info.mode == "absy":
+        address = _u16(data[1], data[2])
+        operand = f"${address:04X},Y"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "zpx":
+        operand = f"${data[1]:02X},X"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "zpy":
+        operand = f"${data[1]:02X},Y"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "acc":
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand="A", length=info.length, engine="65c02"
+        )
+
+    if info.mode == "indx":
+        operand = f"(${data[1]:02X},X)"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "indy":
+        operand = f"(${data[1]:02X}),Y"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "izp":
+        operand = f"(${data[1]:02X})"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "ind":
+        address = _u16(data[1], data[2])
+        operand = f"(${address:04X})"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "iax":
+        address = _u16(data[1], data[2])
+        operand = f"(${address:04X},X)"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
+
+    if info.mode == "zprel":
+        zp_operand = data[1]
+        offset = _signed8(data[2])
+        target = (pc + info.length + offset) & 0xFFFF
+        operand = f"${zp_operand:02X},${target:04X}"
+        return DecodedInstruction(
+            mnemonic=info.mnemonic,
+            operand=operand,
+            length=info.length,
+            branch_target=target,
+            engine="65c02",
+        )
+
     if info.mode == "rel":
         offset = _signed8(data[1])
         target = (pc + info.length + offset) & 0xFFFF
@@ -97,15 +166,6 @@ def decode_sweet16(data: bytes, pc: int = 0) -> DecodedInstruction:
         raise ValueError("no instruction bytes provided")
 
     opcode = data[0]
-
-    if opcode >> 4 == 0x1:
-        _require_bytes(data, 3, opcode)
-        reg = opcode & 0x0F
-        value = _u16(data[1], data[2])
-        operand = f"R{reg},#${value:04X}"
-        return DecodedInstruction(
-            mnemonic="SET", operand=operand, length=3, engine="sweet16"
-        )
 
     info = OPCODES_SWEET16.get(opcode)
     if info is None:
@@ -132,6 +192,34 @@ def decode_sweet16(data: bytes, pc: int = 0) -> DecodedInstruction:
             engine="sweet16",
         )
 
+    if info.mode == "reg":
+        reg = opcode & 0x0F
+        return DecodedInstruction(
+            mnemonic=info.mnemonic,
+            operand=f"R{reg}",
+            length=info.length,
+            engine="sweet16",
+        )
+
+    if info.mode == "reg_ind":
+        reg = opcode & 0x0F
+        return DecodedInstruction(
+            mnemonic=info.mnemonic,
+            operand=f"@R{reg}",
+            length=info.length,
+            engine="sweet16",
+        )
+
+    if info.mode == "reg_imm16":
+        reg = opcode & 0x0F
+        value = _u16(data[1], data[2])
+        return DecodedInstruction(
+            mnemonic=info.mnemonic,
+            operand=f"R{reg},#${value:04X}",
+            length=info.length,
+            engine="sweet16",
+        )
+
     raise ValueError(f"unsupported Sweet16 mode {info.mode!r}")
 
 
@@ -139,7 +227,9 @@ def _looks_like_sweet16(data: bytes) -> bool:
     if not data:
         return False
     opcode = data[0]
-    return opcode in OPCODES_SWEET16 or opcode >> 4 == 0x1
+    # Keep heuristic intentionally conservative to avoid classifying generic
+    # 65C02 byte streams as Sweet16.
+    return opcode <= 0x0F or opcode >> 4 == 0x1
 
 
 def decode_instruction(

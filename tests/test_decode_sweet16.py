@@ -16,9 +16,13 @@ spec.loader.exec_module(module)
 
 decode_instruction = module.decode_instruction
 decode_sweet16 = module.decode_sweet16
+OPCODES_SWEET16 = module.OPCODES_SWEET16
 
 
 class TestDecodeSweet16(unittest.TestCase):
+    def test_opcode_table_is_complete(self) -> None:
+        self.assertEqual(len(OPCODES_SWEET16), 256)
+
     def test_non_branch_set_instruction(self) -> None:
         inst = decode_sweet16(bytes([0x12, 0x34, 0x12]), pc=0x2000)
 
@@ -44,6 +48,26 @@ class TestDecodeSweet16(unittest.TestCase):
         self.assertTrue(inst.sweet16_heuristic_enabled)
         self.assertEqual(inst.mnemonic, "BR")
         self.assertEqual(inst.branch_target, 0x3004)
+
+    def test_register_operand_forms(self) -> None:
+        inst_reg = decode_sweet16(bytes([0x2A]), pc=0x2100)
+        inst_reg_ind = decode_sweet16(bytes([0x4F]), pc=0x2100)
+
+        self.assertEqual(inst_reg.mnemonic, "LD")
+        self.assertEqual(inst_reg.operand, "R10")
+        self.assertEqual(inst_reg.length, 1)
+
+        self.assertEqual(inst_reg_ind.mnemonic, "LD")
+        self.assertEqual(inst_reg_ind.operand, "@R15")
+        self.assertEqual(inst_reg_ind.length, 1)
+
+    def test_bs_relative_target(self) -> None:
+        inst = decode_sweet16(bytes([0x0C, 0xFE]), pc=0x2200)
+
+        self.assertEqual(inst.mnemonic, "BS")
+        self.assertEqual(inst.operand, "$2200")
+        self.assertEqual(inst.length, 2)
+        self.assertEqual(inst.branch_target, 0x2200)
 
 
 if __name__ == "__main__":

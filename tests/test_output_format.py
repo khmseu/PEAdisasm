@@ -87,7 +87,7 @@ class TestOutputFormat(unittest.TestCase):
                 "            ORG    $4100",
                 "            DB     $4C",
                 "            RTN",
-                "            DB     $EA",
+                "            INR    R10",
             ],
         )
 
