@@ -1,0 +1,141 @@
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+Reg0        EQU    $00             ;Doubles as the Accumulator
+Reg1        EQU    $02
+Reg2        EQU    $04
+Reg3        EQU    $06
+Reg4        EQU    $08
+LoMem       EQU    $0A             ;=0x0801
+Reg5        EQU    $0A             ;Points @ 1st char of curr edited file
+TxtBgn      EQU    $0A             ;Reg5
+HiMem       EQU    $0C             ;=0x9900 Not used by EDASM.ASM
+Reg6        EQU    $0C             ;HiMem
+Reg7        EQU    $0E             ;Points @ last char of curr edited file
+TxtEnd      EQU    $0E             ;Reg7
+Reg8        EQU    $10
+TxtBgn+1    EQU     $11
+Reg9        EQU    $12
+Reg10       EQU    $14
+Reg11       EQU    $16
+Reg12       EQU    $18             ;Subroutine return stack pointer
+Reg13       EQU    $1A             ;Result of a comparison instruction
+Reg14       EQU    $1C             ;Status Register
+Reg15       EQU    $1E             ;Program Counter
+WNDWDTH     EQU    $21
+CH          EQU    $24
+CV          EQU    $25
+BASL        EQU    $28
+InvFlg      EQU    $32
+Prompt      EQU    $33
+CSWL        EQU    $36             ;Output hook
+KSWL        EQU    $38             ;Input hook
+A1          EQU    $3C
+A2          EQU    $3E
+A4          EQU    $42
+StackP      EQU    $49             ;Save area for H/W stack ptr
+VideoSlt    EQU    $50             ;=0xCs where s=1-3 (if 80-col video card present)
+FileType    EQU    $51             ;filetype
+ExecMode    EQU    $53             ;Exec mode
+PtrMode     EQU    $54             ;=0x80,$00 - Printer ON/OFF
+TabChar     EQU    $5F             ;Set by Editor
+PrColumn    EQU    $61             ;curr print col
+UserTabT    EQU    $68             ;0x68-$71 User defined Table table
+ErrCode     EQU    $72             ;error code
+PrintF      EQU    $73             ;-1=Print Cmd 0=List Cmd
+StackP2     EQU    $73             ;Save area for H/W stack ptr on fatal err
+SwapMode    EQU    $74             ;Split-buf mode 0-normal,1=buf1,2=buf2
+CaseMode    EQU    $75             ;ucase/lcase
+BufIndex    EQU    $76             ;Index into InBuf
+MulCmdF     EQU    $77             ;multiple cmds if msb on
+CmdDelim    EQU    $78             ;Cmd Delimiter/Separator
+TruncF      EQU    $79             ;=0xFF-truncate comments
+HelpF       EQU    $7C             ;Display Help Menu-0x80
+Stack       EQU    $0100
+InBuf       EQU    $0200
+TxBuf2      EQU    $0280
+SOFTEV      EQU    $03F2           ;RESET vector
+PWREDUP     EQU    $03F4
+USRADR      EQU    $03F8           ;ctrl-Y vector
+X2000       EQU    $2000           ;Load & Exec addr of SYS Files
+LoadAdrAsm  EQU    $6800
+X7800       EQU    $7800           ;EdAsm.Asm's sub-module load/exec Addr
+LoadAdrEd   EQU    $8900           ;Load Addr of Editor Module
+X9900       EQU    $9900           ;EdAsm.Ed's sub-module load/exec addr
+X9AA5       EQU    $9AA5           ;set R12 to 0xBD00
+X9C98       EQU    $9C98           ;output err msg
+X9D11       EQU    $9D11           ;Default TAB table
+X9D14       EQU    $9D14           ;Edasm.AutoSt
+X9D21       EQU    $9D21           ;JMP table
+X9E55       EQU    $9E55           ;convert date/time to ASCII
+X9F83       EQU    $9F83           ;copy right
+XA70B       EQU    $A70B           ;cmd line input
+XA75B       EQU    $A75B           ;chk for presence of 80-col card
+XA788       EQU    $A788           ;reset I/O hooks
+XA78A       EQU    $A78A           ;alternate entry point of 0xA788
+DoHelp      EQU    $A7F1
+XA872       EQU    $A872           ;Load EDASM.SWAP
+XA8D1       EQU    $A8D1           ;vol/sub-dir header entry
+XA900       EQU    $A900
+XAD00       EQU    $AD00
+XBD00       EQU    $BD00           ;General Purpose 128-byte buffers
+XBD80       EQU    $BD80           ; used by Edasm's modules
+XBE00       EQU    $BE00           ;0xBE00-$BE3F (curr Pathname)
+DevCtlS     EQU    $BE40           ;(0xBE40-$BE61) Init to $C3 if 80-col card present
+TabTable    EQU    $BE60           ;0xBE60-$BE62
+DateTime    EQU    $BE64           ;0xBE64-$73
+EdAsmDir    EQU    $BE79           ;Where EDASM lives
+PrtError    EQU    $BEFC           ;EdAsm Interpreter error message rtn
+PRODOS8     EQU    $BF00
+LASTDEV     EQU    $BF30
+BitMap      EQU    $BF58
+BitMap+4    EQU     $BF5C
+P8DATE      EQU    $BF90
+P8TIME      EQU    $BF92
+MACHID      EQU    $BF98
+SLTBYT      EQU    $BF99           ;Slot ROM map
+CMDADR      EQU    $BF9C           ;last MLI call return address
+MINIVERS    EQU    $BFFC           ;minimum interpreter version
+IVERSION    EQU    $BFFD           ;interpreter version
+KBD         EQU    $C000
+CLR80VID    EQU    $C00C
+KBDSTROBE   EQU    $C010
+BUTN3       EQU    $C060
+BUTN2       EQU    $C063
+RDBANK2     EQU    $C080           ;Read only RAM bank 2; no write
+ROMIN2      EQU    $C081           ;Read ROM/Write RAM bank 2 (RR)
+RDROM2      EQU    $C082           ;Read ROM; no write
+LCBANK2     EQU    $C083           ;Read/Write RAM bank 2 (RR)
+BASICINT    EQU    $C300
+XC30B       EQU    $C30B           ;card identification
+XC30C       EQU    $C30C
+NEWSW16     EQU    $D000           ;Modified version of Sweet16 lives here
+XD000       EQU    $D000           ;LC Bank2 - SW16 or Asm's Print Symbol Table
+XD610       EQU    $D610           ;printer init
+XDD41       EQU    $DD41           ;init TAB tabke
+XDE18       EQU    $DE18           ;Table of cmds (ASM,NEW,ONLINE etc)
+XDFA2       EQU    $DFA2           ;Cmd SW16 jmp table
+BASCLD      EQU    $E000           ;AppleSoft ColdStart
+SWEET16     EQU    $F689           ;Original IntegerBASIC ROM entry point
+PRNTAX      EQU    $F941
+PRBLNK      EQU    $F948
+INIT        EQU    $FB2F
+BELL1       EQU    $FBDD
+VTABZ       EQU    $FC24
+HOME        EQU    $FC58
+CLREOL      EQU    $FC9C
+WAIT        EQU    $FCA8
+RDKEY       EQU    $FD0C
+RDCHAR      EQU    $FD35
+GETLN       EQU    $FD6A           ;input line w/prompt
+CROUT       EQU    $FD8E           ;issue carriage return
+COUT        EQU    $FDED           ;output char via user's I/O
+COUT1       EQU    $FDF0           ;output via video screen
+MOVE        EQU    $FE2C
+SETNORM     EQU    $FE84
+SETKBD      EQU    $FE89
+SETVID      EQU    $FE93
+PRERR       EQU    $FF2D
+MON         EQU    $FF65
+MONZ        EQU    $FF69
+IRQV        EQU    $FFFE
