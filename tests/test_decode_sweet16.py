@@ -3,7 +3,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DECODE_PATH = REPO_ROOT / "tools" / "disasm65" / "decode.py"
 
@@ -37,7 +36,9 @@ class TestDecodeSweet16(unittest.TestCase):
         self.assertEqual(inst.branch_target, 0x2000)
 
     def test_decode_path_heuristic_flag_switches_engine(self) -> None:
-        inst = decode_instruction(bytes([0x01, 0x02]), pc=0x3000, sweet16_heuristic=True)
+        inst = decode_instruction(
+            bytes([0x01, 0x02]), pc=0x3000, sweet16_heuristic=True
+        )
 
         self.assertEqual(inst.engine, "sweet16")
         self.assertTrue(inst.sweet16_heuristic_enabled)

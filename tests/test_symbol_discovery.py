@@ -4,7 +4,6 @@ import unittest
 from dataclasses import dataclass
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ANALYZE_PATH = REPO_ROOT / "tools" / "disasm65" / "analyze.py"
 MODEL_PATH = REPO_ROOT / "tools" / "disasm65" / "model.py"
@@ -40,9 +39,13 @@ class FakeInstruction:
 class TestSymbolDiscovery(unittest.TestCase):
     def test_new_label_created_for_code_target(self) -> None:
         decoded = {
-            0x1000: FakeInstruction(mnemonic="BNE", operand="$1007", length=2, branch_target=0x1007),
+            0x1000: FakeInstruction(
+                mnemonic="BNE", operand="$1007", length=2, branch_target=0x1007
+            ),
             0x1002: FakeInstruction(mnemonic="JMP", operand="$1234", length=3),
-            0x1200: FakeInstruction(mnemonic="BNE", operand="$1204", length=2, branch_target=0x1204),
+            0x1200: FakeInstruction(
+                mnemonic="BNE", operand="$1204", length=2, branch_target=0x1204
+            ),
         }
 
         symbols = discover_symbols(
@@ -58,7 +61,9 @@ class TestSymbolDiscovery(unittest.TestCase):
 
     def test_predefined_symbol_precedence(self) -> None:
         decoded = {
-            0x1000: FakeInstruction(mnemonic="BNE", operand="$1007", length=2, branch_target=0x1007),
+            0x1000: FakeInstruction(
+                mnemonic="BNE", operand="$1007", length=2, branch_target=0x1007
+            ),
         }
 
         symbols = discover_symbols(

@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-
 AddressingMode65C02 = Literal["imp", "imm", "abs", "absx", "zp", "rel"]
 
 

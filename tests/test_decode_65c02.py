@@ -3,7 +3,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DECODE_PATH = REPO_ROOT / "tools" / "disasm65" / "decode.py"
 

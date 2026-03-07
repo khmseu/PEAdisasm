@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-
 AddressingModeSweet16 = Literal["imp", "rel8"]
 
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Iterable
 
-
 AUTO_LABEL_PREFIX = "L"
 
 
@@ -73,7 +72,9 @@ def create_auto_symbols(
     return result
 
 
-def merge_symbol_maps(predefined: dict[str, int], discovered_addresses: Iterable[int]) -> dict[str, int]:
+def merge_symbol_maps(
+    predefined: dict[str, int], discovered_addresses: Iterable[int]
+) -> dict[str, int]:
     merged = dict(predefined)
     auto_symbols = create_auto_symbols(
         discovered_addresses,

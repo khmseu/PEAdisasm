@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable
 
-
 _TEXT_SUBTYPES = {"ASC", "DCI", "STR"}
 _RANGE_DIRECTIVES = {"CODE", "DATA", "SW16"}
 _SINGLE_ADDRESS_DIRECTIVES = {"ORG", "ENTRY"}
@@ -66,7 +65,9 @@ def parse_control(source: str | Iterable[str]) -> list[ControlDirective]:
         if kind in _SINGLE_ADDRESS_DIRECTIVES:
             if len(operands) != 1 or "," in operands[0]:
                 raise ValueError(f"line {line_no}: {kind} expects 1 operand")
-            directives.append(ControlDirective(kind=kind, address=_parse_number(operands[0], line_no)))
+            directives.append(
+                ControlDirective(kind=kind, address=_parse_number(operands[0], line_no))
+            )
             continue
 
         if kind in _RANGE_DIRECTIVES:
@@ -77,22 +78,33 @@ def parse_control(source: str | Iterable[str]) -> list[ControlDirective]:
 
         if kind == "TEXT":
             if not operands:
-                raise ValueError(f"line {line_no}: TEXT expects start,end operands and optional subtype")
+                raise ValueError(
+                    f"line {line_no}: TEXT expects start,end operands and optional subtype"
+                )
 
             subtype = "ASC"
             range_tokens = operands
             if len(operands) >= 2 and operands[-1].isalpha():
                 candidate = operands[-1].upper()
                 if candidate not in _TEXT_SUBTYPES:
-                    if any(token.isalpha() and token.upper() in _TEXT_SUBTYPES for token in operands[:-1]):
-                        raise ValueError(f"line {line_no}: TEXT expects start,end operands and optional subtype")
-                    raise ValueError(f"line {line_no}: invalid TEXT subtype {operands[-1]!r}")
+                    if any(
+                        token.isalpha() and token.upper() in _TEXT_SUBTYPES
+                        for token in operands[:-1]
+                    ):
+                        raise ValueError(
+                            f"line {line_no}: TEXT expects start,end operands and optional subtype"
+                        )
+                    raise ValueError(
+                        f"line {line_no}: invalid TEXT subtype {operands[-1]!r}"
+                    )
                 subtype = candidate
                 range_tokens = operands[:-1]
 
             range_text = " ".join(range_tokens)
             start, end = _parse_range(range_text, kind, line_no)
-            directives.append(ControlDirective(kind=kind, start=start, end=end, subtype=subtype))
+            directives.append(
+                ControlDirective(kind=kind, start=start, end=end, subtype=subtype)
+            )
             continue
 
         raise ValueError(f"line {line_no}: unknown directive {parts[0]!r}")

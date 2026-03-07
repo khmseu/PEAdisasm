@@ -40,30 +40,42 @@ def decode_65c02(data: bytes, pc: int = 0) -> DecodedInstruction:
     opcode = data[0]
     info = OPCODES_65C02.get(opcode)
     if info is None:
-        return DecodedInstruction(mnemonic=".DB", operand=f"${opcode:02X}", length=1, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=".DB", operand=f"${opcode:02X}", length=1, engine="65c02"
+        )
 
     _require_bytes(data, info.length, opcode)
 
     if info.mode == "imp":
-        return DecodedInstruction(mnemonic=info.mnemonic, operand="", length=info.length, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand="", length=info.length, engine="65c02"
+        )
 
     if info.mode == "imm":
         operand = f"#${data[1]:02X}"
-        return DecodedInstruction(mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
 
     if info.mode == "zp":
         operand = f"${data[1]:02X}"
-        return DecodedInstruction(mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
 
     if info.mode == "abs":
         address = _u16(data[1], data[2])
         operand = f"${address:04X}"
-        return DecodedInstruction(mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
 
     if info.mode == "absx":
         address = _u16(data[1], data[2])
         operand = f"${address:04X},X"
-        return DecodedInstruction(mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand=operand, length=info.length, engine="65c02"
+        )
 
     if info.mode == "rel":
         offset = _signed8(data[1])
@@ -91,16 +103,22 @@ def decode_sweet16(data: bytes, pc: int = 0) -> DecodedInstruction:
         reg = opcode & 0x0F
         value = _u16(data[1], data[2])
         operand = f"R{reg},#${value:04X}"
-        return DecodedInstruction(mnemonic="SET", operand=operand, length=3, engine="sweet16")
+        return DecodedInstruction(
+            mnemonic="SET", operand=operand, length=3, engine="sweet16"
+        )
 
     info = OPCODES_SWEET16.get(opcode)
     if info is None:
-        return DecodedInstruction(mnemonic=".DB", operand=f"${opcode:02X}", length=1, engine="sweet16")
+        return DecodedInstruction(
+            mnemonic=".DB", operand=f"${opcode:02X}", length=1, engine="sweet16"
+        )
 
     _require_bytes(data, info.length, opcode)
 
     if info.mode == "imp":
-        return DecodedInstruction(mnemonic=info.mnemonic, operand="", length=info.length, engine="sweet16")
+        return DecodedInstruction(
+            mnemonic=info.mnemonic, operand="", length=info.length, engine="sweet16"
+        )
 
     if info.mode == "rel8":
         offset = _signed8(data[1])

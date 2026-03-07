@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -20,7 +19,9 @@ def _load_attr(module_name: str, attr_name: str) -> Any:
         pass
 
     module_path = Path(__file__).with_name("disasm65") / f"{module_name}.py"
-    spec = importlib.util.spec_from_file_location(f"disasm65_cli_{module_name}", module_path)
+    spec = importlib.util.spec_from_file_location(
+        f"disasm65_cli_{module_name}", module_path
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load {module_name} module")
 

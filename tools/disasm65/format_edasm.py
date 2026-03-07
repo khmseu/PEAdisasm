@@ -7,7 +7,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -27,7 +26,9 @@ def _load_attr(module_name: str, attr_name: str) -> Any:
         pass
 
     module_path = Path(__file__).with_name(f"{module_name}.py")
-    spec = importlib.util.spec_from_file_location(f"disasm65_runtime_{module_name}", module_path)
+    spec = importlib.util.spec_from_file_location(
+        f"disasm65_runtime_{module_name}", module_path
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load {module_name} module")
 
@@ -62,7 +63,9 @@ def _resolve_kind(address: int, directives: Sequence[Any]) -> str:
     return resolve_region_kind(address, directives, fallback_kind="CODE")
 
 
-def _contiguous_kind_length(data_len: int, org: int, offset: int, directives: Sequence[Any], kind: str) -> int:
+def _contiguous_kind_length(
+    data_len: int, org: int, offset: int, directives: Sequence[Any], kind: str
+) -> int:
     length = 0
     while offset + length < data_len:
         address = org + offset + length
@@ -72,7 +75,9 @@ def _contiguous_kind_length(data_len: int, org: int, offset: int, directives: Se
     return max(1, length)
 
 
-def _decode_map(data: bytes, org: int, directives: Sequence[Any], sweet16_heuristic: bool) -> dict[int, Any]:
+def _decode_map(
+    data: bytes, org: int, directives: Sequence[Any], sweet16_heuristic: bool
+) -> dict[int, Any]:
     decoded: dict[int, Any] = {}
     offset = 0
 
@@ -81,7 +86,9 @@ def _decode_map(data: bytes, org: int, directives: Sequence[Any], sweet16_heuris
         kind = _resolve_kind(address, directives)
 
         if kind in _EXECUTABLE_KINDS:
-            contiguous_length = _contiguous_kind_length(len(data), org, offset, directives, kind)
+            contiguous_length = _contiguous_kind_length(
+                len(data), org, offset, directives, kind
+            )
             try:
                 instruction = decode_instruction(
                     data[offset:],
@@ -90,17 +97,23 @@ def _decode_map(data: bytes, org: int, directives: Sequence[Any], sweet16_heuris
                     sweet16_heuristic=sweet16_heuristic,
                 )
             except ValueError:
-                instruction = DecodedInstruction(mnemonic="DB", operand=f"${data[offset]:02X}", length=1)
+                instruction = DecodedInstruction(
+                    mnemonic="DB", operand=f"${data[offset]:02X}", length=1
+                )
 
             if int(getattr(instruction, "length", 1)) > contiguous_length:
-                instruction = DecodedInstruction(mnemonic="DB", operand=f"${data[offset]:02X}", length=1)
+                instruction = DecodedInstruction(
+                    mnemonic="DB", operand=f"${data[offset]:02X}", length=1
+                )
 
             decoded[address] = instruction
             offset += max(1, int(getattr(instruction, "length", 1)))
             continue
 
         if kind == "TEXT":
-            offset += _contiguous_kind_length(len(data), org, offset, directives, "TEXT")
+            offset += _contiguous_kind_length(
+                len(data), org, offset, directives, "TEXT"
+            )
             continue
 
         offset += 1
@@ -204,15 +217,21 @@ def format_edasm(
         if kind in _EXECUTABLE_KINDS and address in decoded_by_address:
             instruction = decoded_by_address[address]
             mnemonic = str(getattr(instruction, "mnemonic", "DB")).lstrip(".").upper()
-            operand = _render_operand(str(getattr(instruction, "operand", "")), symbols_by_address)
+            operand = _render_operand(
+                str(getattr(instruction, "operand", "")), symbols_by_address
+            )
             lines.append(_format_line(label, mnemonic, operand))
             offset += max(1, int(getattr(instruction, "length", 1)))
             continue
 
         if kind == "TEXT":
-            run_length = _contiguous_kind_length(len(data), org, offset, directive_list, "TEXT")
+            run_length = _contiguous_kind_length(
+                len(data), org, offset, directive_list, "TEXT"
+            )
             text = _escape_ascii(data[offset : offset + run_length])
-            lines.append(_format_line(label, _text_subtype(address, directive_list), f'"{text}"'))
+            lines.append(
+                _format_line(label, _text_subtype(address, directive_list), f'"{text}"')
+            )
             offset += run_length
             continue
 

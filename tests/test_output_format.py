@@ -4,7 +4,6 @@ import sys
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI_PATH = REPO_ROOT / "tools" / "disasm65.py"
 FORMAT_PATH = REPO_ROOT / "tools" / "disasm65" / "format_edasm.py"

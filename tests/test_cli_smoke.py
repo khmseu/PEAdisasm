@@ -4,7 +4,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CLI_PATH = REPO_ROOT / "tools" / "disasm65.py"
 
@@ -32,7 +31,9 @@ class TestCliSmoke(unittest.TestCase):
         result = self.run_cli()
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("the following arguments are required: input", result.stderr.lower())
+        self.assertIn(
+            "the following arguments are required: input", result.stderr.lower()
+        )
 
     def test_valid_args_print_disassembly_output(self) -> None:
         with tempfile.NamedTemporaryFile(suffix=".bin") as tmp:
@@ -47,7 +48,9 @@ class TestCliSmoke(unittest.TestCase):
         self.assertIn("ORG", result.stdout)
 
     def test_control_org_used_when_org_not_provided(self) -> None:
-        with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file, tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
+            suffix=".bin"
+        ) as bin_file, tempfile.NamedTemporaryFile(
             suffix=".ctl", mode="w", encoding="utf-8"
         ) as ctl_file:
             bin_file.write(bytes([0xEA]))
@@ -61,7 +64,9 @@ class TestCliSmoke(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines()[0], "            ORG    $2000")
 
     def test_explicit_org_zero_overrides_control_org(self) -> None:
-        with tempfile.NamedTemporaryFile(suffix=".bin") as bin_file, tempfile.NamedTemporaryFile(
+        with tempfile.NamedTemporaryFile(
+            suffix=".bin"
+        ) as bin_file, tempfile.NamedTemporaryFile(
             suffix=".ctl", mode="w", encoding="utf-8"
         ) as ctl_file:
             bin_file.write(bytes([0xEA]))
@@ -69,7 +74,9 @@ class TestCliSmoke(unittest.TestCase):
             ctl_file.write("ORG $2000\nCODE $2000,$2000\n")
             ctl_file.flush()
 
-            result = self.run_cli(bin_file.name, "--org", "0", "--control", ctl_file.name)
+            result = self.run_cli(
+                bin_file.name, "--org", "0", "--control", ctl_file.name
+            )
 
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stdout.splitlines()[0], "            ORG    $0000")
