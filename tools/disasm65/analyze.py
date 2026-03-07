@@ -40,8 +40,11 @@ merge_symbol_maps = _load_merge_symbol_maps()
 
 _REGION_PRECEDENCE = ("TEXT", "SW16", "DATA", "CODE")
 _EXECUTABLE_KINDS = {"CODE", "SW16"}
-_TARGET_MNEMONICS = {"JMP", "JSR", "CALL"}
-_HEX_OPERAND_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4})")
+_SIMPLE_ADDRESS_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4})(?:,(X|Y))?$")
+_INDIRECT_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4})\)$")
+_INDIRECT_PREINDEX_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4}),(X|Y)\)$")
+_INDIRECT_POSTINDEX_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4})\),(X|Y)$")
+_ZPREL_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4}),\$([0-9A-Fa-f]{1,4})$")
 
 
 def _normalize_kind(kind: str) -> str:
@@ -78,27 +81,51 @@ def _in_ranges(address: int, ranges: Iterable[Any]) -> bool:
     return any(rng.contains(address) for rng in ranges)
 
 
-def _target_from_operand(operand: str) -> int | None:
-    match = _HEX_OPERAND_RE.match(operand)
-    if match is None:
-        return None
-    return int(match.group(1), 16)
+def _addresses_from_operand(mnemonic: str, operand: str) -> set[int]:
+    if not operand or operand.startswith("#"):
+        return set()
+
+    match = _SIMPLE_ADDRESS_RE.match(operand)
+    if match is not None:
+        return {int(match.group(1), 16) & 0xFFFF}
+
+    match = _INDIRECT_RE.match(operand)
+    if match is not None:
+        return {int(match.group(1), 16) & 0xFFFF}
+
+    match = _INDIRECT_PREINDEX_RE.match(operand)
+    if match is not None:
+        return {int(match.group(1), 16) & 0xFFFF}
+
+    match = _INDIRECT_POSTINDEX_RE.match(operand)
+    if match is not None:
+        return {int(match.group(1), 16) & 0xFFFF}
+
+    # BBR/BBS use zp,rel; we discover both the tested zp location and target.
+    match = _ZPREL_RE.match(operand)
+    if match is not None and mnemonic.startswith(("BBR", "BBS")):
+        return {
+            int(match.group(1), 16) & 0xFFFF,
+            int(match.group(2), 16) & 0xFFFF,
+        }
+
+    return set()
 
 
-def _extract_target(instruction: Any) -> int | None:
+def _extract_targets(instruction: Any) -> set[int]:
+    targets: set[int] = set()
+
     branch_target = getattr(instruction, "branch_target", None)
     if branch_target is not None:
-        return int(branch_target) & 0xFFFF
+        targets.add(int(branch_target) & 0xFFFF)
 
     mnemonic = _normalize_kind(getattr(instruction, "mnemonic", ""))
-    if mnemonic not in _TARGET_MNEMONICS:
-        return None
+    if mnemonic in {"DB", ".DB"}:
+        return targets
 
-    operand = getattr(instruction, "operand", "")
-    parsed = _target_from_operand(operand)
-    if parsed is None:
-        return None
-    return parsed & 0xFFFF
+    operand = str(getattr(instruction, "operand", ""))
+    targets.update(_addresses_from_operand(mnemonic, operand))
+    return targets
 
 
 def discover_symbol_targets(
@@ -125,9 +152,7 @@ def discover_symbol_targets(
         elif ranges and not _in_ranges(address, ranges):
             continue
 
-        target = _extract_target(decoded_by_address[address])
-        if target is not None:
-            targets.add(target)
+        targets.update(_extract_targets(decoded_by_address[address]))
 
     return targets
 

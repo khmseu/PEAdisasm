@@ -87,6 +87,62 @@ class TestSymbolDiscovery(unittest.TestCase):
         self.assertEqual(symbols["L1FFF"], 0x1FFF)
         self.assertEqual(symbols["L2000"], 0x2000)
 
+    def test_discovers_data_reference_labels_from_code_operands(self) -> None:
+        decoded = {
+            0x3000: FakeInstruction(mnemonic="LDA", operand="$1234", length=3),
+            0x3003: FakeInstruction(mnemonic="STA", operand="$2000,Y", length=3),
+            0x3006: FakeInstruction(mnemonic="ORA", operand="($44)", length=2),
+            0x3008: FakeInstruction(mnemonic="JMP", operand="($3456)", length=3),
+        }
+
+        symbols = discover_symbols(
+            decoded_by_address=decoded,
+            code_ranges=[AddressRange(start=0x3000, end=0x30FF)],
+            predefined_symbols={},
+            seeded_entries=[],
+        )
+
+        self.assertEqual(symbols["L1234"], 0x1234)
+        self.assertEqual(symbols["L2000"], 0x2000)
+        self.assertEqual(symbols["L0044"], 0x0044)
+        self.assertEqual(symbols["L3456"], 0x3456)
+
+    def test_discovers_bbr_bbs_zero_page_operand_and_branch_target(self) -> None:
+        decoded = {
+            0x3200: FakeInstruction(
+                mnemonic="BBR1",
+                operand="$44,$3210",
+                length=3,
+                branch_target=0x3210,
+            )
+        }
+
+        symbols = discover_symbols(
+            decoded_by_address=decoded,
+            code_ranges=[AddressRange(start=0x3200, end=0x32FF)],
+            predefined_symbols={},
+            seeded_entries=[],
+        )
+
+        self.assertEqual(symbols["L0044"], 0x0044)
+        self.assertEqual(symbols["L3210"], 0x3210)
+
+    def test_ignores_immediate_and_db_operands_for_data_discovery(self) -> None:
+        decoded = {
+            0x3400: FakeInstruction(mnemonic="LDA", operand="#$44", length=2),
+            0x3402: FakeInstruction(mnemonic="DB", operand="$1234", length=1),
+            0x3403: FakeInstruction(mnemonic=".DB", operand="$3456", length=1),
+        }
+
+        symbols = discover_symbols(
+            decoded_by_address=decoded,
+            code_ranges=[AddressRange(start=0x3400, end=0x34FF)],
+            predefined_symbols={},
+            seeded_entries=[],
+        )
+
+        self.assertEqual(symbols, {})
+
 
 if __name__ == "__main__":
     unittest.main()

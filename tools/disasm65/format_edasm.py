@@ -47,7 +47,11 @@ resolve_region_kind = _load_attr("analyze", "resolve_region_kind")
 _LABEL_WIDTH = 12
 _MNEMONIC_WIDTH = 7
 _EXECUTABLE_KINDS = {"CODE", "SW16"}
-_OPERAND_ADDRESS_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4})(,X)?$")
+_SIMPLE_ADDRESS_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4})(?:,(X|Y))?$")
+_INDIRECT_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4})\)$")
+_INDIRECT_PREINDEX_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4}),(X|Y)\)$")
+_INDIRECT_POSTINDEX_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4})\),(X|Y)$")
+_ZPREL_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4}),\$([0-9A-Fa-f]{1,4})$")
 
 
 def _format_line(label: str, mnemonic: str, operand: str = "") -> str:
@@ -143,17 +147,51 @@ def _address_to_symbol(symbols: Mapping[str, int]) -> dict[int, str]:
 
 
 def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
-    match = _OPERAND_ADDRESS_RE.match(operand)
-    if match is None:
+    if not operand or operand.startswith("#"):
         return operand
 
-    address = int(match.group(1), 16) & 0xFFFF
-    symbol = symbols_by_address.get(address)
-    if symbol is None:
-        return operand
+    match = _SIMPLE_ADDRESS_RE.match(operand)
+    if match is not None:
+        address = int(match.group(1), 16) & 0xFFFF
+        symbol = symbols_by_address.get(address)
+        if symbol is None:
+            return operand
+        suffix = f",{match.group(2)}" if match.group(2) else ""
+        return f"{symbol}{suffix}"
 
-    suffix = match.group(2) or ""
-    return f"{symbol}{suffix}"
+    match = _INDIRECT_RE.match(operand)
+    if match is not None:
+        address = int(match.group(1), 16) & 0xFFFF
+        symbol = symbols_by_address.get(address)
+        if symbol is None:
+            return operand
+        return f"({symbol})"
+
+    match = _INDIRECT_PREINDEX_RE.match(operand)
+    if match is not None:
+        address = int(match.group(1), 16) & 0xFFFF
+        symbol = symbols_by_address.get(address)
+        if symbol is None:
+            return operand
+        return f"({symbol},{match.group(2)})"
+
+    match = _INDIRECT_POSTINDEX_RE.match(operand)
+    if match is not None:
+        address = int(match.group(1), 16) & 0xFFFF
+        symbol = symbols_by_address.get(address)
+        if symbol is None:
+            return operand
+        return f"({symbol}),{match.group(2)}"
+
+    match = _ZPREL_RE.match(operand)
+    if match is not None:
+        first = int(match.group(1), 16) & 0xFFFF
+        second = int(match.group(2), 16) & 0xFFFF
+        first_rendered = symbols_by_address.get(first, f"${match.group(1).upper()}")
+        second_rendered = symbols_by_address.get(second, f"${match.group(2).upper()}")
+        return f"{first_rendered},{second_rendered}"
+
+    return operand
 
 
 def _text_subtype(address: int, directives: Sequence[Any]) -> str:
@@ -217,8 +255,11 @@ def format_edasm(
         if kind in _EXECUTABLE_KINDS and address in decoded_by_address:
             instruction = decoded_by_address[address]
             mnemonic = str(getattr(instruction, "mnemonic", "DB")).lstrip(".").upper()
-            operand = _render_operand(
-                str(getattr(instruction, "operand", "")), symbols_by_address
+            operand_text = str(getattr(instruction, "operand", ""))
+            operand = (
+                operand_text
+                if mnemonic == "DB"
+                else _render_operand(operand_text, symbols_by_address)
             )
             lines.append(_format_line(label, mnemonic, operand))
             offset += max(1, int(getattr(instruction, "length", 1)))

@@ -139,6 +139,66 @@ class TestOutputFormat(unittest.TestCase):
             ],
         )
 
+    def test_substitutes_symbols_for_common_data_operands(self) -> None:
+        output = format_edasm(
+            data=bytes(
+                [
+                    0xAD,
+                    0x34,
+                    0x12,
+                    0xB9,
+                    0x78,
+                    0x56,
+                    0x12,
+                    0x44,
+                    0x6C,
+                    0x00,
+                    0x20,
+                    0x1F,
+                    0x44,
+                    0xFD,
+                ]
+            ),
+            org=0x5000,
+            directives=parse_control("CODE $5000,$500D"),
+            predefined_symbols={
+                "DATA1": 0x1234,
+                "DATA2": 0x5678,
+                "ZP44": 0x0044,
+                "VEC": 0x2000,
+                "TARGET": 0x5000,
+            },
+        )
+
+        lines = output.splitlines()
+        self.assertTrue(any("LDA    DATA1" in line for line in lines))
+        self.assertTrue(any("LDA    DATA2,Y" in line for line in lines))
+        self.assertTrue(any("ORA    (ZP44)" in line for line in lines))
+        self.assertTrue(any("JMP    (VEC)" in line for line in lines))
+        self.assertTrue(any("BBR1   ZP44,L500B" in line for line in lines))
+
+    def test_auto_discovers_and_uses_data_label_in_operand(self) -> None:
+        output = format_edasm(
+            data=bytes([0xAD, 0x34, 0x12]),
+            org=0x6000,
+            directives=parse_control("CODE $6000,$6002"),
+            predefined_symbols={},
+        )
+
+        lines = output.splitlines()
+        self.assertEqual(lines[1], "            LDA    L1234")
+
+    def test_db_literal_in_code_is_not_symbolized(self) -> None:
+        output = format_edasm(
+            data=bytes([0x4C, 0x34, 0x12]),
+            org=0x6100,
+            directives=parse_control("CODE $6100,$6100\nDATA $6101,$6102"),
+            predefined_symbols={"SHOULD_NOT_APPEAR": 0x004C},
+        )
+
+        lines = output.splitlines()
+        self.assertEqual(lines[1], "            DB     $4C")
+
 
 if __name__ == "__main__":
     unittest.main()
