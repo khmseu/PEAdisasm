@@ -38,7 +38,7 @@ def _load_merge_symbol_maps() -> Any:
 merge_symbol_maps = _load_merge_symbol_maps()
 
 
-_REGION_PRECEDENCE = ("TEXT", "SW16", "DATA", "CODE")
+_REGION_PRECEDENCE = ("TEXT", "SW16", "DW", "DATA", "CODE")
 _EXECUTABLE_KINDS = {"CODE", "SW16"}
 _SIMPLE_ADDRESS_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4})(?:,(X|Y))?$")
 _INDIRECT_RE = re.compile(r"^\(\$([0-9A-Fa-f]{1,4})\)$")

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 _TEXT_SUBTYPES = {"ASC", "DCI", "STR"}
-_RANGE_DIRECTIVES = {"CODE", "DATA", "SW16"}
+_RANGE_DIRECTIVES = {"CODE", "DATA", "DW", "SW16"}
 _SINGLE_ADDRESS_DIRECTIVES = {"ORG", "ENTRY"}
 
 

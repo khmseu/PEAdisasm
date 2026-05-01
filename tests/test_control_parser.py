@@ -26,6 +26,7 @@ class TestControlParser(unittest.TestCase):
         ENTRY 4096
         CODE $1000,$10FF
         DATA 4352,4607
+        DW $1200,$12FF
         TEXT $2000,$2003
         TEXT $2100,$2105 DCI
         SW16 $3000,$30FF
@@ -40,6 +41,7 @@ class TestControlParser(unittest.TestCase):
                 ControlDirective(kind="ENTRY", address=4096),
                 ControlDirective(kind="CODE", start=0x1000, end=0x10FF),
                 ControlDirective(kind="DATA", start=4352, end=4607),
+                ControlDirective(kind="DW", start=0x1200, end=0x12FF),
                 ControlDirective(kind="TEXT", start=0x2000, end=0x2003, subtype="ASC"),
                 ControlDirective(kind="TEXT", start=0x2100, end=0x2105, subtype="DCI"),
                 ControlDirective(kind="SW16", start=0x3000, end=0x30FF),

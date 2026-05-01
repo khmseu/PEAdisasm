@@ -228,6 +228,37 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
     return operand
 
 
+def _next_symbol_boundary(
+    address: int, length: int, symbols_by_address: Mapping[int, str]
+) -> int:
+    """Return max span length until the next in-span symbol address."""
+    if length <= 1:
+        return max(1, length)
+
+    max_length = max(1, length)
+    for delta in range(1, max_length):
+        if (address + delta) in symbols_by_address:
+            return delta
+    return max_length
+
+
+def _append_interior_labels(
+    lines: list[str],
+    *,
+    address: int,
+    length: int,
+    symbols_by_address: Mapping[int, str],
+) -> None:
+    """Emit standalone label lines for symbols inside an emitted span."""
+    if length <= 1:
+        return
+
+    for delta in range(1, length):
+        symbol = symbols_by_address.get(address + delta)
+        if symbol:
+            lines.append(_format_line(symbol, ""))
+
+
 def _text_subtype(address: int, directives: Sequence[Any]) -> str:
     for directive in directives:
         if str(getattr(directive, "kind", "")).upper() != "TEXT":
@@ -295,19 +326,42 @@ def format_edasm(
                 if mnemonic == "DB"
                 else _render_operand(operand_text, symbols_by_address)
             )
+            span_length = max(1, int(getattr(instruction, "length", 1)))
             lines.append(_format_line(label, mnemonic, operand))
-            offset += max(1, int(getattr(instruction, "length", 1)))
+            _append_interior_labels(
+                lines,
+                address=address,
+                length=span_length,
+                symbols_by_address=symbols_by_address,
+            )
+            offset += span_length
             continue
 
         if kind == "TEXT":
             run_length = _contiguous_kind_length(
                 len(data), org, offset, directive_list, "TEXT"
             )
-            text = _escape_ascii(data[offset : offset + run_length])
+            span_length = _next_symbol_boundary(address, run_length, symbols_by_address)
+            text = _escape_ascii(data[offset : offset + span_length])
             lines.append(
                 _format_line(label, _text_subtype(address, directive_list), f'"{text}"')
             )
-            offset += run_length
+            offset += span_length
+            continue
+
+        if kind == "DW":
+            bytes_left = len(data) - offset
+            if bytes_left >= 2:
+                if (address + 1) in symbols_by_address:
+                    lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
+                    offset += 1
+                else:
+                    value = data[offset] | (data[offset + 1] << 8)
+                    lines.append(_format_line(label, "DW", f"${value:04X}"))
+                    offset += 2
+            else:
+                lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
+                offset += 1
             continue
 
         lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))

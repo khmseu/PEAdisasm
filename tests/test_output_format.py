@@ -236,6 +236,91 @@ class TestOutputFormat(unittest.TestCase):
             ],
         )
 
+    def test_dw_directive_outputs_words(self) -> None:
+        output = format_edasm(
+            data=bytes([0x34, 0x12, 0x78, 0x56]),
+            org=0x7000,
+            directives=parse_control("DW $7000,$7003"),
+            predefined_symbols={},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $7000",
+                "            DW     $1234",
+                "            DW     $5678",
+            ],
+        )
+
+    def test_dw_directive_with_odd_byte_falls_back_to_db(self) -> None:
+        output = format_edasm(
+            data=bytes([0x34, 0x12, 0xFF]),
+            org=0x7100,
+            directives=parse_control("DW $7100,$7102"),
+            predefined_symbols={},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $7100",
+                "            DW     $1234",
+                "            DB     $FF",
+            ],
+        )
+
+    def test_text_region_splits_at_symbol_address(self) -> None:
+        output = format_edasm(
+            data=bytes([0x41, 0x42]),
+            org=0x7200,
+            directives=parse_control("TEXT $7200,$7201"),
+            predefined_symbols={"MIDTXT": 0x7201},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $7200",
+                '            ASC    "A"',
+                'MIDTXT      ASC    "B"',
+            ],
+        )
+
+    def test_dw_region_splits_when_symbol_is_mid_word(self) -> None:
+        output = format_edasm(
+            data=bytes([0x34, 0x12]),
+            org=0x7300,
+            directives=parse_control("DW $7300,$7301"),
+            predefined_symbols={"MIDWORD": 0x7301},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $7300",
+                "            DB     $34",
+                "MIDWORD     DB     $12",
+            ],
+        )
+
+    def test_code_symbol_inside_instruction_emits_standalone_label(self) -> None:
+        output = format_edasm(
+            data=bytes([0x4C, 0x34, 0x12]),
+            org=0x7400,
+            directives=parse_control("CODE $7400,$7402"),
+            predefined_symbols={"MIDCODE": 0x7401},
+        )
+
+        self.assertEqual(
+            output.splitlines(),
+            [
+                "            ORG    $7400",
+                "            JMP    L1234",
+                "MIDCODE     ",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
