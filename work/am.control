@@ -1,0 +1,8 @@
+org $d000
+data $d000,$d364
+data $f8cd,$f8cf
+data $f962,$fa3f
+dw $fafd,$fafe
+data $faff,$fb1d
+data $ffcc,$fff9
+dw $fffa,$ffff
