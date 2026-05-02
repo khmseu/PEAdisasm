@@ -1,11 +1,22 @@
+# tools/disasm65/control.py
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Iterable
 
 _TEXT_SUBTYPES = {"ASC", "DCI", "STR"}
-_RANGE_DIRECTIVES = {"CODE", "DATA", "DW", "SW16"}
-_SINGLE_ADDRESS_DIRECTIVES = {"ORG", "ENTRY"}
+_MODE_MAP = {
+    "65": "CODE",
+    "16": "SW16",
+    "SWEET": "SWEET",
+    "TEXT": "TEXT",
+    "DATA": "DATA",
+    "DW": "DW",
+    "CODE": "CODE",
+    "SW16": "SW16",
+}
+_RANGE_DIRECTIVES = {"CODE", "DATA", "DW", "SW16", "TEXT", "65", "16"}
+_SINGLE_ADDRESS_DIRECTIVES = {"ORG", "ENTRY", "SWEET"}
 
 
 @dataclass(frozen=True)
@@ -15,6 +26,7 @@ class ControlDirective:
     start: int | None = None
     end: int | None = None
     subtype: str | None = None
+    raw: str | None = None
 
 
 def _to_lines(source: str | Iterable[str]) -> list[str]:
@@ -59,51 +71,79 @@ def parse_control(source: str | Iterable[str]) -> list[ControlDirective]:
             continue
 
         parts = code.split()
-        kind = parts[0].upper()
+        first = parts[0].upper()
+
+        # Check for "address mode" form
+        if (
+            first.startswith("$")
+            or first[0].isdigit()
+            or (
+                "," in first
+                and (
+                    first.split(",")[0].startswith("$")
+                    or first.split(",")[0][0].isdigit()
+                )
+            )
+        ):
+            if len(parts) < 2:
+                raise ValueError(f"line {line_no}: expected mode after address")
+
+            addr_part = parts[0]
+            kind_token = parts[1].upper()
+            kind = _MODE_MAP.get(kind_token, kind_token)
+
+            if "," in addr_part:
+                start, end = _parse_range(addr_part, kind, line_no)
+                directives.append(
+                    ControlDirective(kind=kind, start=start, end=end, raw=code)
+                )
+            else:
+                address = _parse_number(addr_part, line_no)
+                if kind in _SINGLE_ADDRESS_DIRECTIVES or kind == "ORG":
+                    directives.append(
+                        ControlDirective(kind=kind, address=address, raw=code)
+                    )
+                else:
+                    directives.append(
+                        ControlDirective(kind=kind, start=address, raw=code)
+                    )
+            continue
+
+        # Existing format: "KIND operands"
+        kind = _MODE_MAP.get(first, first)
         operands = parts[1:]
 
-        if kind in _SINGLE_ADDRESS_DIRECTIVES:
-            if len(operands) != 1 or "," in operands[0]:
+        if kind in _SINGLE_ADDRESS_DIRECTIVES or kind == "ORG":
+            if len(operands) != 1:
                 raise ValueError(f"line {line_no}: {kind} expects 1 operand")
             directives.append(
-                ControlDirective(kind=kind, address=_parse_number(operands[0], line_no))
+                ControlDirective(
+                    kind=kind, address=_parse_number(operands[0], line_no), raw=code
+                )
             )
             continue
 
         if kind in _RANGE_DIRECTIVES:
-            operand_text = " ".join(operands)
-            start, end = _parse_range(operand_text, kind, line_no)
-            directives.append(ControlDirective(kind=kind, start=start, end=end))
-            continue
-
-        if kind == "TEXT":
             if not operands:
-                raise ValueError(
-                    f"line {line_no}: TEXT expects start,end operands and optional subtype"
-                )
+                raise ValueError(f"line {line_no}: {kind} expects operands")
+
+            operand_text = operands[0]
+            if "," in operand_text:
+                start, end = _parse_range(operand_text, kind, line_no)
+            else:
+                start = _parse_number(operand_text, line_no)
+                end = None
 
             subtype = "ASC"
-            range_tokens = operands
-            if len(operands) >= 2 and operands[-1].isalpha():
+            if kind == "TEXT" and len(operands) > 1:
                 candidate = operands[-1].upper()
-                if candidate not in _TEXT_SUBTYPES:
-                    if any(
-                        token.isalpha() and token.upper() in _TEXT_SUBTYPES
-                        for token in operands[:-1]
-                    ):
-                        raise ValueError(
-                            f"line {line_no}: TEXT expects start,end operands and optional subtype"
-                        )
-                    raise ValueError(
-                        f"line {line_no}: invalid TEXT subtype {operands[-1]!r}"
-                    )
-                subtype = candidate
-                range_tokens = operands[:-1]
+                if candidate in _TEXT_SUBTYPES:
+                    subtype = candidate
 
-            range_text = " ".join(range_tokens)
-            start, end = _parse_range(range_text, kind, line_no)
             directives.append(
-                ControlDirective(kind=kind, start=start, end=end, subtype=subtype)
+                ControlDirective(
+                    kind=kind, start=start, end=end, subtype=subtype, raw=code
+                )
             )
             continue
 

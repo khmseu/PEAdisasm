@@ -1,3 +1,4 @@
+# tools/disasm65/format_edasm.py
 from __future__ import annotations
 
 import importlib.util
@@ -18,20 +19,17 @@ def _load_attr(module_name: str, attr_name: str) -> Any:
         return getattr(module, attr_name)
     except (ImportError, AttributeError):
         pass
-
-    try:  # pragma: no cover - package import fallback
+    try:
         module = __import__(f"{module_name}", fromlist=[attr_name])
         return getattr(module, attr_name)
     except (ImportError, AttributeError):
         pass
-
     module_path = Path(__file__).with_name(f"{module_name}.py")
     spec = importlib.util.spec_from_file_location(
         f"disasm65_runtime_{module_name}", module_path
     )
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load {module_name} module")
-
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -67,12 +65,23 @@ def _resolve_kind(address: int, directives: Sequence[Any]) -> str:
     return resolve_region_kind(address, directives, fallback_kind="CODE")
 
 
+def _get_directive_at(address: int, directives: Sequence[Any]) -> Any | None:
+    for d in directives:
+        if getattr(d, "address", None) == address:
+            return d
+        if getattr(d, "start", None) == address:
+            return d
+    return None
+
+
 def _contiguous_kind_length(
     data_len: int, org: int, offset: int, directives: Sequence[Any], kind: str
 ) -> int:
     length = 0
     while offset + length < data_len:
         address = org + offset + length
+        if length > 0 and _get_directive_at(address, directives):
+            break
         if _resolve_kind(address, directives) != kind:
             break
         length += 1
@@ -86,6 +95,12 @@ def _decode_map(
     offset = 0
     bf00_payload_state = 0
 
+    sweet_addresses = {
+        d.address for d in directives if d.kind == "SWEET" and d.address is not None
+    }
+    if not sweet_addresses:
+        sweet_addresses = {0xBF00}
+
     while offset < len(data):
         address = org + offset
         kind = _resolve_kind(address, directives)
@@ -98,13 +113,11 @@ def _decode_map(
                 offset += 1
                 bf00_payload_state = 2
                 continue
-
             if bf00_payload_state == 2:
                 contiguous_length = _contiguous_kind_length(
                     len(data), org, offset, directives, kind
                 )
-                bytes_left = len(data) - offset
-                if bytes_left >= 2 and contiguous_length >= 2:
+                if len(data) - offset >= 2 and contiguous_length >= 2:
                     value = data[offset] | (data[offset + 1] << 8)
                     decoded[address] = DecodedInstruction(
                         mnemonic="DW", operand=f"${value:04X}", length=2
@@ -132,19 +145,18 @@ def _decode_map(
                 instruction = DecodedInstruction(
                     mnemonic="DB", operand=f"${data[offset]:02X}", length=1
                 )
-
             if int(getattr(instruction, "length", 1)) > contiguous_length:
                 instruction = DecodedInstruction(
                     mnemonic="DB", operand=f"${data[offset]:02X}", length=1
                 )
 
             decoded[address] = instruction
-            if (
-                kind == "CODE"
-                and str(getattr(instruction, "mnemonic", "")).upper() == "JSR"
-                and str(getattr(instruction, "operand", "")).upper() == "$BF00"
-            ):
-                bf00_payload_state = 1
+            mnemonic = str(getattr(instruction, "mnemonic", "")).upper()
+            operand = str(getattr(instruction, "operand", "")).upper()
+            if kind == "CODE" and mnemonic == "JSR":
+                match = _SIMPLE_ADDRESS_RE.match(operand)
+                if match and int(match.group(1), 16) in sweet_addresses:
+                    bf00_payload_state = 1
             offset += max(1, int(getattr(instruction, "length", 1)))
             continue
 
@@ -153,9 +165,7 @@ def _decode_map(
                 len(data), org, offset, directives, "TEXT"
             )
             continue
-
         offset += 1
-
     return decoded
 
 
@@ -165,9 +175,8 @@ def _entry_points(directives: Sequence[Any]) -> list[int]:
         if str(getattr(directive, "kind", "")).upper() != "ENTRY":
             continue
         address = getattr(directive, "address", None)
-        if address is None:
-            continue
-        entries.append(int(address) & 0xFFFF)
+        if address is not None:
+            entries.append(int(address) & 0xFFFF)
     return entries
 
 
@@ -183,7 +192,6 @@ def _address_to_symbol(symbols: Mapping[str, int]) -> dict[int, str]:
 def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
     if not operand or operand.startswith("#"):
         return operand
-
     match = _SIMPLE_ADDRESS_RE.match(operand)
     if match is not None:
         address = int(match.group(1), 16) & 0xFFFF
@@ -192,7 +200,6 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
             return operand
         suffix = f",{match.group(2)}" if match.group(2) else ""
         return f"{symbol}{suffix}"
-
     match = _INDIRECT_RE.match(operand)
     if match is not None:
         address = int(match.group(1), 16) & 0xFFFF
@@ -200,7 +207,6 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
         if symbol is None:
             return operand
         return f"({symbol})"
-
     match = _INDIRECT_PREINDEX_RE.match(operand)
     if match is not None:
         address = int(match.group(1), 16) & 0xFFFF
@@ -208,7 +214,6 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
         if symbol is None:
             return operand
         return f"({symbol},{match.group(2)})"
-
     match = _INDIRECT_POSTINDEX_RE.match(operand)
     if match is not None:
         address = int(match.group(1), 16) & 0xFFFF
@@ -216,7 +221,6 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
         if symbol is None:
             return operand
         return f"({symbol}),{match.group(2)}"
-
     match = _ZPREL_RE.match(operand)
     if match is not None:
         first = int(match.group(1), 16) & 0xFFFF
@@ -224,17 +228,14 @@ def _render_operand(operand: str, symbols_by_address: Mapping[int, str]) -> str:
         first_rendered = symbols_by_address.get(first, f"${match.group(1).upper()}")
         second_rendered = symbols_by_address.get(second, f"${match.group(2).upper()}")
         return f"{first_rendered},{second_rendered}"
-
     return operand
 
 
 def _next_symbol_boundary(
     address: int, length: int, symbols_by_address: Mapping[int, str]
 ) -> int:
-    """Return max span length until the next in-span symbol address."""
     if length <= 1:
         return max(1, length)
-
     max_length = max(1, length)
     for delta in range(1, max_length):
         if (address + delta) in symbols_by_address:
@@ -249,44 +250,50 @@ def _append_interior_labels(
     length: int,
     symbols_by_address: Mapping[int, str],
 ) -> None:
-    """Emit standalone label lines for symbols inside an emitted span."""
     if length <= 1:
         return
-
     for delta in range(1, length):
         symbol = symbols_by_address.get(address + delta)
         if symbol:
             lines.append(_format_line(symbol, ""))
 
 
-def _text_subtype(address: int, directives: Sequence[Any]) -> str:
-    for directive in directives:
-        if str(getattr(directive, "kind", "")).upper() != "TEXT":
-            continue
-        start = getattr(directive, "start", None)
-        end = getattr(directive, "end", None)
-        if start is None or end is None:
-            continue
-        if int(start) <= address <= int(end):
-            subtype = str(getattr(directive, "subtype", "ASC") or "ASC").upper()
-            return subtype if subtype in {"ASC", "DCI", "STR"} else "ASC"
-    return "ASC"
+def _is_printable(b: int) -> bool:
+    return 0x20 <= (b & 0x7F) <= 0x7E
 
 
-def _escape_ascii(data: bytes) -> str:
-    parts: list[str] = []
-    for value in data:
-        if value == 0x5C:
-            parts.append("\\\\")
+def _format_text_block(
+    label: str, data: bytes, current_msb: bool | None
+) -> tuple[list[str], bool]:
+    lines = []
+    i = 0
+    msb = current_msb
+    while i < len(data):
+        new_msb = bool(data[i] & 0x80)
+        if msb != new_msb:
+            lines.append(_format_line("", "MSB", "ON" if new_msb else "OFF"))
+            msb = new_msb
+        start = i
+        while i < len(data) and _is_printable(data[i]) and bool(data[i] & 0x80) == msb:
+            i += 1
+        if i > start:
+            if i < len(data) and _is_printable(data[i]) and bool(data[i] & 0x80) != msb:
+                text = "".join(chr(b & 0x7F) for b in data[start : i + 1])
+                lines.append(
+                    _format_line(label if start == 0 else "", "DCI", f'"{text}"')
+                )
+                i += 1
+            else:
+                text = "".join(chr(b & 0x7F) for b in data[start:i])
+                lines.append(
+                    _format_line(label if start == 0 else "", "ASC", f'"{text}"')
+                )
+            label = ""
             continue
-        if value == 0x22:
-            parts.append('\\"')
-            continue
-        if 0x20 <= value <= 0x7E:
-            parts.append(chr(value))
-            continue
-        parts.append(".")
-    return "".join(parts)
+        lines.append(_format_line(label if i == 0 else "", "DB", f"${data[i]:02X}"))
+        label = ""
+        i += 1
+    return lines, msb
 
 
 def format_edasm(
@@ -298,27 +305,39 @@ def format_edasm(
     sweet16_heuristic: bool = False,
 ) -> str:
     directive_list = list(directives or [])
-    predefined = dict(predefined_symbols or {})
-
     decoded_by_address = _decode_map(data, org, directive_list, sweet16_heuristic)
     merged_symbols = discover_symbols(
         decoded_by_address=decoded_by_address,
         directives=directive_list,
-        predefined_symbols=predefined,
+        predefined_symbols=dict(predefined_symbols or {}),
         seeded_entries=_entry_points(directive_list),
     )
     symbols_by_address = _address_to_symbol(merged_symbols)
 
     lines = [_format_line("", "ORG", f"${org & 0xFFFF:04X}")]
-
     offset = 0
+    current_msb = None
+    active_engine = "65c02"
+
     while offset < len(data):
         address = org + offset
+        d = _get_directive_at(address, directive_list)
+        if d:
+            lines.append(f"* control {d.raw}")
+            if d.kind == "SW16":
+                active_engine = "sweet16"
+            elif d.kind == "CODE":
+                active_engine = "65c02"
+
         label = symbols_by_address.get(address, "")
         kind = _resolve_kind(address, directive_list)
 
         if kind in _EXECUTABLE_KINDS and address in decoded_by_address:
             instruction = decoded_by_address[address]
+            engine = getattr(instruction, "engine", "65c02")
+            if engine != active_engine:
+                lines.append(f"* control heuristic {engine}")
+                active_engine = engine
             mnemonic = str(getattr(instruction, "mnemonic", "DB")).lstrip(".").upper()
             operand_text = str(getattr(instruction, "operand", ""))
             operand = (
@@ -342,16 +361,16 @@ def format_edasm(
                 len(data), org, offset, directive_list, "TEXT"
             )
             span_length = _next_symbol_boundary(address, run_length, symbols_by_address)
-            text = _escape_ascii(data[offset : offset + span_length])
-            lines.append(
-                _format_line(label, _text_subtype(address, directive_list), f'"{text}"')
+            text_lines, new_msb = _format_text_block(
+                label, data[offset : offset + span_length], current_msb
             )
+            lines.extend(text_lines)
+            current_msb = new_msb
             offset += span_length
             continue
 
         if kind == "DW":
-            bytes_left = len(data) - offset
-            if bytes_left >= 2:
+            if len(data) - offset >= 2:
                 if (address + 1) in symbols_by_address:
                     lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
                     offset += 1
@@ -366,8 +385,7 @@ def format_edasm(
 
         lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
         offset += 1
-
-    return "\n".join(lines)
+    return "\\n".join(lines)
 
 
 __all__ = ["format_edasm"]
