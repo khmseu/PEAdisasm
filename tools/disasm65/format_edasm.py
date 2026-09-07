@@ -53,10 +53,44 @@ _ZPREL_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4}),\$([0-9A-Fa-f]{1,4})$")
 
 
 def _format_line(label: str, mnemonic: str, operand: str = "") -> str:
-    label_field = f"{label:<{_LABEL_WIDTH}}" if label else " " * _LABEL_WIDTH
+    if label:
+        orig = label
+        # remove at most one trailing colon to avoid turning 'label::' into 'label::'
+        if label.endswith(":"):
+            label = label[:-1]
+        # validate label characters per README (no explicit set given);
+        # use conservative rule: start with letter/underscore, then letters/digits/underscore
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", label):
+            label_field = f"{label+':':<{_LABEL_WIDTH}}"
+        else:
+            # if label doesn't match safe pattern, preserve original unchanged
+            label_field = f"{orig:<{_LABEL_WIDTH}}"
+    else:
+        label_field = " " * _LABEL_WIDTH
     if operand:
         return f"{label_field}{mnemonic:<{_MNEMONIC_WIDTH}}{operand}"
     return f"{label_field}{mnemonic}"
+
+
+_MNEMONIC_MAP: dict[str, str] = {
+    "DB": ".byte",
+    "DW": ".word",
+    "ASC": ".text",
+    "DCI": ".textc",
+}
+
+
+def _map_mnemonic(mnemonic_raw: str) -> str:
+    has_dot = mnemonic_raw.startswith(".")
+    key = mnemonic_raw.lstrip(".")
+    mapped = _MNEMONIC_MAP.get(key.upper())
+    if mapped:
+        return mapped
+    # If this looks like a directive (starts with '.'), return a lowercase form
+    if has_dot:
+        return "." + key.lower()
+    # Otherwise preserve original case for opcodes (avoid surprising case changes)
+    return mnemonic_raw
 
 
 def _resolve_kind(address: int, directives: Sequence[Any]) -> str:
@@ -264,33 +298,56 @@ def _is_printable(b: int) -> bool:
 
 def _format_text_block(
     label: str, data: bytes, current_msb: bool | None
-) -> tuple[list[str], bool]:
+) -> tuple[list[str], bool | None]:
     lines = []
     i = 0
     msb = current_msb
     while i < len(data):
         new_msb = bool(data[i] & 0x80)
         if msb != new_msb:
-            lines.append(_format_line("", "MSB", "ON" if new_msb else "OFF"))
             msb = new_msb
         start = i
         while i < len(data) and _is_printable(data[i]) and bool(data[i] & 0x80) == msb:
             i += 1
         if i > start:
-            if i < len(data) and _is_printable(data[i]) and bool(data[i] & 0x80) != msb:
-                text = "".join(chr(b & 0x7F) for b in data[start : i + 1])
-                lines.append(
-                    _format_line(label if start == 0 else "", "DCI", f'"{text}"')
-                )
-                i += 1
+            # If this run has the high-bit set, prefer `.textc` for a single
+            # printable byte (it sets the high-bit on the last emitted byte).
+            # For multi-byte high-bit runs we must emit explicit `.byte` values
+            # to preserve each byte's high bit. For 7-bit runs, use `.text`/
+            # `.textc` semantics as before.
+            if msb:
+                run_len = i - start
+                if run_len == 1 and _is_printable(data[start]):
+                    ch = chr(data[start] & 0x7F)
+                    lines.append(
+                        _format_line(label if start == 0 else "", ".textc", f'"{ch}"')
+                    )
+                else:
+                    for j in range(start, i):
+                        lines.append(
+                            _format_line(
+                                label if j == 0 else "", ".byte", f"${data[j]:02X}"
+                            )
+                        )
             else:
-                text = "".join(chr(b & 0x7F) for b in data[start:i])
-                lines.append(
-                    _format_line(label if start == 0 else "", "ASC", f'"{text}"')
-                )
+                if (
+                    i < len(data)
+                    and _is_printable(data[i])
+                    and bool(data[i] & 0x80) != msb
+                ):
+                    text = "".join(chr(b & 0x7F) for b in data[start : i + 1])
+                    lines.append(
+                        _format_line(label if start == 0 else "", ".textc", f'"{text}"')
+                    )
+                    i += 1
+                else:
+                    text = "".join(chr(b & 0x7F) for b in data[start:i])
+                    lines.append(
+                        _format_line(label if start == 0 else "", ".text", f'"{text}"')
+                    )
             label = ""
             continue
-        lines.append(_format_line(label if i == 0 else "", "DB", f"${data[i]:02X}"))
+        lines.append(_format_line(label if i == 0 else "", ".byte", f"${data[i]:02X}"))
         label = ""
         i += 1
     return lines, msb
@@ -314,7 +371,7 @@ def format_edasm(
     )
     symbols_by_address = _address_to_symbol(merged_symbols)
 
-    lines = [_format_line("", "ORG", f"${org & 0xFFFF:04X}")]
+    lines = [_format_line("", ".org", f"${org & 0xFFFF:04X}")]
     offset = 0
     current_msb = None
     active_engine = "65c02"
@@ -338,15 +395,18 @@ def format_edasm(
             if engine != active_engine:
                 lines.append(f"* control heuristic {engine}")
                 active_engine = engine
-            mnemonic = str(getattr(instruction, "mnemonic", "DB")).lstrip(".").upper()
+            mnemonic_raw = str(getattr(instruction, "mnemonic", "DB"))
+            key_upper = mnemonic_raw.lstrip(".").upper()
             operand_text = str(getattr(instruction, "operand", ""))
             operand = (
                 operand_text
-                if mnemonic == "DB"
+                if key_upper == "DB"
                 else _render_operand(operand_text, symbols_by_address)
             )
             span_length = max(1, int(getattr(instruction, "length", 1)))
-            lines.append(_format_line(label, mnemonic, operand))
+            out_mnemonic = _map_mnemonic(mnemonic_raw)
+
+            lines.append(_format_line(label, out_mnemonic, operand))
             _append_interior_labels(
                 lines,
                 address=address,
@@ -372,18 +432,18 @@ def format_edasm(
         if kind == "DW":
             if len(data) - offset >= 2:
                 if (address + 1) in symbols_by_address:
-                    lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
+                    lines.append(_format_line(label, ".byte", f"${data[offset]:02X}"))
                     offset += 1
                 else:
                     value = data[offset] | (data[offset + 1] << 8)
-                    lines.append(_format_line(label, "DW", f"${value:04X}"))
+                    lines.append(_format_line(label, ".word", f"${value:04X}"))
                     offset += 2
             else:
-                lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
+                lines.append(_format_line(label, ".byte", f"${data[offset]:02X}"))
                 offset += 1
             continue
 
-        lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
+        lines.append(_format_line(label, ".byte", f"${data[offset]:02X}"))
         offset += 1
     return "\n".join(lines)
 
