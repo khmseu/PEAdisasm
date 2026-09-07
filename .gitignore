@@ -184,3 +184,5 @@ plans/
 
 .fake
 work/*_output.txt
+applesoft.bin
+work/trek.lst

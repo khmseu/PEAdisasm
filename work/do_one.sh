@@ -17,3 +17,4 @@ python3 "${repo_root}/tools/disasm65.py" \
 	--symbols "${script_dir}/${module}.symbols" \
 	"${blob}" \
 	>"${script_dir}/${module}"_output.txt
+../k65.t2/bin/k65asm "${script_dir}/${module}"_output.txt -o "${script_dir}/${module}.bin" -l "${script_dir}/${module}.lst"
