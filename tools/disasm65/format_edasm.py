@@ -385,7 +385,7 @@ def format_edasm(
 
         lines.append(_format_line(label, "DB", f"${data[offset]:02X}"))
         offset += 1
-    return "\\n".join(lines)
+    return "\n".join(lines)
 
 
 __all__ = ["format_edasm"]

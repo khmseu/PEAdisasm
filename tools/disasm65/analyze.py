@@ -12,16 +12,20 @@ from typing import Any
 def _load_merge_symbol_maps() -> Any:
     try:
         from tools.disasm65.symbols import merge_symbol_maps as imported
+
         return imported
     except ImportError:
         pass
     try:
         from .symbols import merge_symbol_maps as imported
+
         return imported
     except ImportError:
         pass
     module_path = Path(__file__).with_name("symbols.py")
-    spec = importlib.util.spec_from_file_location("disasm65_symbols_runtime", module_path)
+    spec = importlib.util.spec_from_file_location(
+        "disasm65_symbols_runtime", module_path
+    )
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to load symbols module")
     module = importlib.util.module_from_spec(spec)
@@ -49,7 +53,7 @@ def _normalize_kind(kind: str) -> str:
 def resolve_region_kind(
     address: int, directives: Iterable[Any], fallback_kind: str = "CODE"
 ) -> str:
-    \"\"\"Resolve region kind using directive precedence and inclusive boundaries.\"\"\"
+    """Resolve region kind using directive precedence and inclusive boundaries."""
     matched_kinds: set[str] = set()
     best_start = -1
     best_start_kind = None
@@ -61,7 +65,7 @@ def resolve_region_kind(
 
         start = getattr(directive, "start", None)
         end = getattr(directive, "end", None)
-        
+
         if start is not None and start <= address:
             if end is not None:
                 if address <= end:
@@ -136,7 +140,9 @@ def discover_symbol_targets(
     directive_list = list(directives or [])
     for address in sorted(decoded_by_address):
         if directive_list:
-            resolved = resolve_region_kind(address, directive_list, fallback_kind=fallback_kind)
+            resolved = resolve_region_kind(
+                address, directive_list, fallback_kind=fallback_kind
+            )
             if resolved not in _EXECUTABLE_KINDS:
                 continue
         elif ranges and not _in_ranges(address, ranges):
