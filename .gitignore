@@ -182,7 +182,8 @@ pyrightconfig.json
 /local_extract/
 plans/
 
+# Local (other)
 .fake
-work/*_output.txt
 applesoft.bin
-work/trek.lst
+work/*_output.txt
+work/*.lst
