@@ -55,13 +55,12 @@ _ZPREL_RE = re.compile(r"^\$([0-9A-Fa-f]{1,4}),\$([0-9A-Fa-f]{1,4})$")
 def _format_line(label: str, mnemonic: str, operand: str = "") -> str:
     if label:
         orig = label
-        # remove at most one trailing colon to avoid turning 'label::' into 'label::'
-        if label.endswith(":"):
-            label = label[:-1]
+        # normalize by removing any trailing colons, then re-add a single colon
+        base = label.rstrip(":")
         # validate label characters per README (no explicit set given);
         # use conservative rule: start with letter/underscore, then letters/digits/underscore
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", label):
-            label_field = f"{label+':':<{_LABEL_WIDTH}}"
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", base):
+            label_field = f"{base+':':<{_LABEL_WIDTH}}"
         else:
             # if label doesn't match safe pattern, preserve original unchanged
             label_field = f"{orig:<{_LABEL_WIDTH}}"
