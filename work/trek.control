@@ -1,4 +1,14 @@
-$800 org
-$801 text
+$0800 org
+$0801 text
 $3280 text
-$3b04 code
+$3b02 code
+$3b18 text
+$3b20 data
+$3b28 data
+$3b30 data
+$3b38 data
+$3b40 data
+$3b48 data
+$3b50 data
+$3b58 data
+$3b60 data

@@ -184,6 +184,6 @@ plans/
 
 # Local (other)
 .fake
-applesoft.bin
+*.bin
+*.lst
 work/*_output.txt
-work/*.lst
