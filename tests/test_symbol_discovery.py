@@ -127,6 +127,20 @@ class TestSymbolDiscovery(unittest.TestCase):
         self.assertEqual(symbols["L0044"], 0x0044)
         self.assertEqual(symbols["L3210"], 0x3210)
 
+    def test_discovers_target_immediately_following_binary(self) -> None:
+        decoded = {
+            0x1000: FakeInstruction(mnemonic="JMP", operand="$1003", length=3),
+        }
+
+        symbols = discover_symbols(
+            decoded_by_address=decoded,
+            code_ranges=[AddressRange(start=0x1000, end=0x1002)],
+            predefined_symbols={},
+            seeded_entries=[],
+        )
+
+        self.assertEqual(symbols["L1003"], 0x1003)
+
     def test_ignores_immediate_and_db_operands_for_data_discovery(self) -> None:
         decoded = {
             0x3400: FakeInstruction(mnemonic="LDA", operand="#$44", length=2),

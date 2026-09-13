@@ -53,3 +53,35 @@ def test_label_colon_normalization():
     )
     # Should show a single trailing colon, not a double
     assert "LOOP:" in out2 and "LOOP::" not in out2
+
+
+def test_end_of_binary_predefined_label():
+    # A symbol at org + len(data) should be output as a standalone label after the binary
+    data = bytes([0xEA])  # NOP at $1000
+    out = format_edasm(data=data, org=0x1000, predefined_symbols={"END_PROG": 0x1001})
+    lines = out.splitlines()
+    assert lines[-1].strip() == "END_PROG:"
+
+
+def test_end_of_binary_discovered_label():
+    # An instruction referencing org + len(data) should discover L1003 and emit it at the end
+    data = bytes([0x4C, 0x03, 0x10])  # JMP $1003 at $1000
+    out = format_edasm(data=data, org=0x1000)
+    lines = out.splitlines()
+    assert any("JMP    L1003" in line for line in lines)
+    assert lines[-1].strip() == "L1003:"
+
+
+def test_end_of_binary_with_directive():
+    # A control directive at org + len(data) should emit control comment and label
+    data = bytes([0xEA])  # NOP at $2000
+    directives = [SimpleNamespace(kind="ENTRY", address=0x2001, raw="ENTRY $2001")]
+    out = format_edasm(
+        data=data,
+        org=0x2000,
+        directives=directives,
+        predefined_symbols={"FINISH": 0x2001},
+    )
+    lines = out.splitlines()
+    assert ";* control ENTRY $2001" in lines
+    assert lines[-1].strip() == "FINISH:"

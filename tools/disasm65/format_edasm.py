@@ -295,6 +295,27 @@ def _is_printable(b: int) -> bool:
     return 0x20 <= (b & 0x7F) <= 0x7E
 
 
+def _escape_string(s: str) -> str:
+    parts: list[str] = []
+    for ch in s:
+        o = ord(ch)
+        if ch == "\\":
+            parts.append("\\\\")
+        elif ch == '"':
+            parts.append('\\"')
+        elif ch == "\n":
+            parts.append("\\n")
+        elif ch == "\r":
+            parts.append("\\r")
+        elif ch == "\t":
+            parts.append("\\t")
+        elif 0x20 <= o <= 0x7E:
+            parts.append(ch)
+        else:
+            parts.append(f"\\x{o:02X}")
+    return "".join(parts)
+
+
 def _format_text_block(
     label: str, data: bytes, current_msb: bool | None
 ) -> tuple[list[str], bool | None]:
@@ -318,8 +339,9 @@ def _format_text_block(
                 run_len = i - start
                 if run_len == 1 and _is_printable(data[start]):
                     ch = chr(data[start] & 0x7F)
+                    esc = _escape_string(ch)
                     lines.append(
-                        _format_line(label if start == 0 else "", ".textc", f'"{ch}"')
+                        _format_line(label if start == 0 else "", ".textc", f'"{esc}"')
                     )
                 else:
                     for j in range(start, i):
@@ -335,14 +357,16 @@ def _format_text_block(
                     and bool(data[i] & 0x80) != msb
                 ):
                     text = "".join(chr(b & 0x7F) for b in data[start : i + 1])
+                    esc = _escape_string(text)
                     lines.append(
-                        _format_line(label if start == 0 else "", ".textc", f'"{text}"')
+                        _format_line(label if start == 0 else "", ".textc", f'"{esc}"')
                     )
                     i += 1
                 else:
                     text = "".join(chr(b & 0x7F) for b in data[start:i])
+                    esc = _escape_string(text)
                     lines.append(
-                        _format_line(label if start == 0 else "", ".text", f'"{text}"')
+                        _format_line(label if start == 0 else "", ".text", f'"{esc}"')
                     )
             label = ""
             continue
@@ -379,7 +403,7 @@ def format_edasm(
         address = org + offset
         d = _get_directive_at(address, directive_list)
         if d:
-            lines.append(f"* control {d.raw}")
+            lines.append(f";* control {d.raw}")
             if d.kind == "SW16":
                 active_engine = "sweet16"
             elif d.kind == "CODE":
@@ -392,7 +416,7 @@ def format_edasm(
             instruction = decoded_by_address[address]
             engine = getattr(instruction, "engine", "65c02")
             if engine != active_engine:
-                lines.append(f"* control heuristic {engine}")
+                lines.append(f";* control heuristic {engine}")
                 active_engine = engine
             mnemonic_raw = str(getattr(instruction, "mnemonic", "DB"))
             key_upper = mnemonic_raw.lstrip(".").upper()
@@ -444,6 +468,15 @@ def format_edasm(
 
         lines.append(_format_line(label, ".byte", f"${data[offset]:02X}"))
         offset += 1
+
+    end_address = (org + len(data)) & 0xFFFF
+    d = _get_directive_at(end_address, directive_list)
+    if d:
+        lines.append(f";* control {d.raw}")
+    end_label = symbols_by_address.get(end_address)
+    if end_label:
+        lines.append(_format_line(end_label, ""))
+
     return "\n".join(lines)
 
 
