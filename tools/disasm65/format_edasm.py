@@ -288,7 +288,8 @@ def _append_interior_labels(
     for delta in range(1, length):
         symbol = symbols_by_address.get(address + delta)
         if symbol:
-            lines.append(_format_line(symbol, ""))
+            offset = length - delta
+            lines.append(_format_line(symbol, ".equ", f"*-{offset}"))
 
 
 def _is_printable(b: int) -> bool:

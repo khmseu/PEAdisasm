@@ -85,3 +85,31 @@ def test_end_of_binary_with_directive():
     lines = out.splitlines()
     assert ";* control ENTRY $2001" in lines
     assert lines[-1].strip() == "FINISH:"
+
+
+def test_interior_label_emits_equ_with_relative_star_offset():
+    # A symbol pointing to byte 1 of a 3-byte instruction should emit .equ *-2
+    # A symbol pointing to byte 2 of a 3-byte instruction should emit .equ *-1
+    data = bytes([0x4C, 0x34, 0x12])  # JMP $1234 at $7400
+    out = format_edasm(
+        data=data,
+        org=0x7400,
+        predefined_symbols={"MID1": 0x7401, "MID2": 0x7402},
+    )
+    lines = out.splitlines()
+    assert any("JMP    L1234" in line for line in lines)
+    assert any("MID1:       .equ   *-2" in line for line in lines)
+    assert any("MID2:       .equ   *-1" in line for line in lines)
+
+
+def test_interior_label_in_2_byte_instruction():
+    # A symbol pointing to byte 1 of a 2-byte instruction should emit .equ *-1
+    data = bytes([0xA9, 0x42])  # LDA #$42 at $1000
+    out = format_edasm(
+        data=data,
+        org=0x1000,
+        predefined_symbols={"OPND": 0x1001},
+    )
+    lines = out.splitlines()
+    assert any("LDA    #$42" in line for line in lines)
+    assert any("OPND:       .equ   *-1" in line for line in lines)
