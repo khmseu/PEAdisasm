@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+set -x
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/.." && pwd)"
@@ -17,4 +18,10 @@ python3 "${repo_root}/tools/disasm65.py" \
 	--symbols "${script_dir}/${module}.symbols" \
 	"${blob}" \
 	>"${script_dir}/${module}"_output.txt
-../k65.t2/bin/k65asm "${script_dir}/${module}"_output.txt -o "${script_dir}/${module}.bin" -l "${script_dir}/${module}.lst"
+(
+	sed -e 's/[[:space:]]equ[[:space:]]*/ .equ /i' "${script_dir}/${module}.symbols"
+	echo
+	echo .65c02
+	sed -e 's,^[[:space:]]*,,;s,[[:space:]]*$,,' "${script_dir}/${module}"_output.txt
+) >"${script_dir}/${module}".asm
+../k65.t2/bin/k65asm "${script_dir}/${module}".asm -o "${script_dir}/${module}.bin" -l "${script_dir}/${module}.lst"
